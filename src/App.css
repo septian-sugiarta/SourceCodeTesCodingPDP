@@ -128,19 +128,43 @@ label {
   display: block;
   font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
 input,
 select {
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 6px;
   font-size: 13px;
   margin-bottom: 10px;
   background: #fff;
   color: var(--text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 93, 80, 0.12);
+}
+
+.input-error {
+  border-color: #d93025 !important;
+  box-shadow: 0 0 0 3px rgba(217, 48, 37, 0.08);
+  outline: none;
+}
+
+.field-error {
+  color: #d93025;
+  font-size: 11px;
+  margin-top: -6px;
+  margin-bottom: 8px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 button.primary {

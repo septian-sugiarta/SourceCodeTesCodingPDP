@@ -12,6 +12,11 @@ const VEHICLE_BRANDS = {
   KTM: ['Duke 200', 'Duke 390', 'RC 200'],
 }
 
+const VEHICLE_MODEL_OPTIONS = {
+  'Motor Roda 2': ['Vario 160', 'Beat Street', 'PCX Hybrid', 'NMax', 'R25', 'Aerox 155'],
+  'Motor Roda 4': ['Avanza', 'Brio', 'Xenia', 'Inova', 'Pajero Sport', 'Fortuner'],
+}
+
 const VEHICLE_COLORS = ['Hitam', 'Putih', 'Merah', 'Biru', 'Abu-abu', 'Silver', 'Hijau', 'Kuning']
 
 const initialFormState = {
@@ -109,12 +114,30 @@ function App() {
   const [pengajuanList, setPengajuanList] = useState([])
   const [idCounter, setIdCounter] = useState(1)
   const [toast, setToast] = useState(null)
+  const [formErrors, setFormErrors] = useState({})
   const sigRefs = useRef({})
 
   const selectedBrandModels = useMemo(
     () => VEHICLE_BRANDS[formData.f_merk] || [],
     [formData.f_merk],
   )
+
+  const selectedModelTypes = useMemo(
+    () => VEHICLE_MODEL_OPTIONS[formData.f_model] || [],
+    [formData.f_model],
+  )
+
+  const calculatedAngsuran = useMemo(() => {
+    const harga = Number(formData.f_harga) || 0
+    const dp = Number(formData.f_dp) || 0
+    const lama = Number(formData.f_lama) || 0
+
+    if (harga > 0 && lama > 0) {
+      return String(Math.round(Math.max(harga - dp, 0) / lama))
+    }
+
+    return ''
+  }, [formData.f_harga, formData.f_dp, formData.f_lama])
 
   useEffect(() => {
     if (!toast) return
@@ -141,18 +164,14 @@ function App() {
         next.f_model = ''
       }
 
-      if (['f_harga', 'f_dp', 'f_lama'].includes(id)) {
-        const harga = Number(next.f_harga) || 0
-        const dp = Number(next.f_dp) || 0
-        const lama = Number(next.f_lama) || 0
-
-        if (harga > 0 && lama > 0) {
-          next.f_angsuran = String(Math.round(Math.max(harga - dp, 0) / lama))
-        }
+      if (id === 'f_model') {
+        next.f_tipe = ''
       }
 
       return next
     })
+
+    setFormErrors((prev) => ({ ...prev, [id]: '' }))
   }
 
   const handleFileChange = (event) => {
@@ -161,33 +180,39 @@ function App() {
   }
 
   const validateForm = (data, files) => {
-    if (!data.f_nama.trim()) return { valid: false, message: 'Nama lengkap wajib diisi.' }
-    if (!/^\d{16}$/.test(data.f_nik.trim())) {
-      return { valid: false, message: 'NIK harus berisi 16 digit angka.' }
-    }
-    if (!data.f_tgl) return { valid: false, message: 'Tanggal lahir wajib diisi.' }
-    if (!data.f_dealer.trim()) return { valid: false, message: 'Dealer wajib diisi.' }
-    if (!data.f_merk) return { valid: false, message: 'Merk kendaraan wajib dipilih.' }
-    if (!data.f_model) return { valid: false, message: 'Model kendaraan wajib dipilih.' }
-    if (!data.f_warna) return { valid: false, message: 'Warna kendaraan wajib dipilih.' }
+    const errors = {}
+
+    if (!data.f_nama.trim()) errors.f_nama = 'Nama lengkap wajib diisi.'
+    if (!/^\d{16}$/.test(data.f_nik.trim())) errors.f_nik = 'NIK harus berisi 16 digit angka.'
+    if (!data.f_tgl) errors.f_tgl = 'Tanggal lahir wajib diisi.'
+    if (!data.f_dealer.trim()) errors.f_dealer = 'Dealer wajib diisi.'
+    if (!data.f_merk) errors.f_merk = 'Merk kendaraan wajib dipilih.'
+    if (!data.f_model) errors.f_model = 'Model kendaraan wajib dipilih.'
+    if (!data.f_tipe) errors.f_tipe = 'Tipe kendaraan wajib dipilih.'
+    if (!data.f_warna) errors.f_warna = 'Warna kendaraan wajib dipilih.'
     if (!data.f_harga || Number(data.f_harga) <= 0) {
-      return { valid: false, message: 'Harga kendaraan harus lebih dari 0.' }
+      errors.f_harga = 'Harga kendaraan harus lebih dari 0.'
     }
     if (!data.f_dp || Number(data.f_dp) < 0) {
-      return { valid: false, message: 'Down payment wajib diisi dengan angka valid.' }
+      errors.f_dp = 'Down payment wajib diisi dengan angka valid.'
     }
     if (!data.f_lama || Number(data.f_lama) <= 0) {
-      return { valid: false, message: 'Lama kredit harus lebih dari 0.' }
+      errors.f_lama = 'Lama kredit harus lebih dari 0.'
     }
     if (!files.length) {
-      return { valid: false, message: 'Dokumen digital wajib diupload berupa gambar.' }
-    }
-    const invalidImage = files.some((file) => !file.type.startsWith('image/'))
-    if (invalidImage) {
-      return { valid: false, message: 'Dokumen digital harus berupa file gambar.' }
+      errors.f_files = 'Dokumen digital wajib diupload berupa gambar.'
+    } else {
+      const invalidImage = files.some((file) => !file.type.startsWith('image/'))
+      if (invalidImage) {
+        errors.f_files = 'Dokumen digital harus berupa file gambar.'
+      }
     }
 
-    return { valid: true, message: 'Berhasil' }
+    return {
+      valid: Object.keys(errors).length === 0,
+      errors,
+      message: Object.values(errors)[0] || 'Berhasil',
+    }
   }
 
   const handleSubmit = (event) => {
@@ -197,9 +222,12 @@ function App() {
     const validation = validateForm(formData, files)
 
     if (!validation.valid) {
+      setFormErrors(validation.errors)
       showToast('error', validation.message)
       return
     }
+
+    setFormErrors({})
 
     const data = {
       id: `PJ-${String(idCounter).padStart(4, '0')}`,
@@ -371,24 +399,24 @@ function App() {
               data" dan fotokopi dokumen manual.
             </p>
 
-            <form id="pengajuanForm" onSubmit={handleSubmit}>
+            <form id="pengajuanForm" onSubmit={handleSubmit} noValidate>
               <fieldset>
                 <legend>Data konsumen</legend>
                 <div className="grid">
                   <div>
                     <label htmlFor="f_nama">Nama lengkap</label>
                     <input
-                      required
                       id="f_nama"
                       value={formData.f_nama}
                       onChange={handleInputChange}
                       placeholder="Nama sesuai KTP"
+                      className={formErrors.f_nama ? 'input-error' : ''}
                     />
+                    {formErrors.f_nama && <div className="field-error">{formErrors.f_nama}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_nik">NIK</label>
                     <input
-                      required
                       id="f_nik"
                       value={formData.f_nik}
                       onChange={handleInputChange}
@@ -396,17 +424,20 @@ function App() {
                       inputMode="numeric"
                       pattern="[0-9]*"
                       placeholder="16 digit NIK"
+                      className={formErrors.f_nik ? 'input-error' : ''}
                     />
+                    {formErrors.f_nik && <div className="field-error">{formErrors.f_nik}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_tgl">Tanggal lahir</label>
                     <input
-                      required
                       id="f_tgl"
                       type="date"
                       value={formData.f_tgl}
                       onChange={handleInputChange}
+                      className={formErrors.f_tgl ? 'input-error' : ''}
                     />
+                    {formErrors.f_tgl && <div className="field-error">{formErrors.f_tgl}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_status">Status perkawinan</label>
@@ -433,16 +464,22 @@ function App() {
                   <div>
                     <label htmlFor="f_dealer">Dealer</label>
                     <input
-                      required
                       id="f_dealer"
                       value={formData.f_dealer}
                       onChange={handleInputChange}
                       placeholder="Nama dealer"
+                      className={formErrors.f_dealer ? 'input-error' : ''}
                     />
+                    {formErrors.f_dealer && <div className="field-error">{formErrors.f_dealer}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_merk">Merk kendaraan</label>
-                    <select id="f_merk" value={formData.f_merk} onChange={handleInputChange}>
+                    <select
+                      id="f_merk"
+                      value={formData.f_merk}
+                      onChange={handleInputChange}
+                      className={formErrors.f_merk ? 'input-error' : ''}
+                    >
                       <option value="">Pilih merk kendaraan</option>
                       {Object.keys(VEHICLE_BRANDS).map((merk) => (
                         <option key={merk} value={merk}>
@@ -450,6 +487,7 @@ function App() {
                         </option>
                       ))}
                     </select>
+                    {formErrors.f_merk && <div className="field-error">{formErrors.f_merk}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_model">Model kendaraan</label>
@@ -457,28 +495,45 @@ function App() {
                       id="f_model"
                       value={formData.f_model}
                       onChange={handleInputChange}
-                      disabled={!selectedBrandModels.length}
+                      className={formErrors.f_model ? 'input-error' : ''}
                     >
-                      <option value="">{selectedBrandModels.length ? 'Pilih model kendaraan' : 'Pilih merk terlebih dahulu'}</option>
-                      {selectedBrandModels.map((model) => (
+                      <option value="">Pilih model kendaraan</option>
+                      {Object.keys(VEHICLE_MODEL_OPTIONS).map((model) => (
                         <option key={model} value={model}>
                           {model}
                         </option>
                       ))}
                     </select>
+                    {formErrors.f_model && <div className="field-error">{formErrors.f_model}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_tipe">Tipe kendaraan</label>
-                    <input
+                    <select
                       id="f_tipe"
                       value={formData.f_tipe}
                       onChange={handleInputChange}
-                      placeholder="Contoh: CBS ISS"
-                    />
+                      disabled={!selectedModelTypes.length}
+                      className={formErrors.f_tipe ? 'input-error' : ''}
+                    >
+                      <option value="">
+                        {selectedModelTypes.length ? 'Pilih tipe kendaraan' : 'Pilih model terlebih dahulu'}
+                      </option>
+                      {selectedModelTypes.map((tipe) => (
+                        <option key={tipe} value={tipe}>
+                          {tipe}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.f_tipe && <div className="field-error">{formErrors.f_tipe}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_warna">Warna kendaraan</label>
-                    <select id="f_warna" value={formData.f_warna} onChange={handleInputChange}>
+                    <select
+                      id="f_warna"
+                      value={formData.f_warna}
+                      onChange={handleInputChange}
+                      className={formErrors.f_warna ? 'input-error' : ''}
+                    >
                       <option value="">Pilih warna kendaraan</option>
                       {VEHICLE_COLORS.map((warna) => (
                         <option key={warna} value={warna}>
@@ -486,17 +541,19 @@ function App() {
                         </option>
                       ))}
                     </select>
+                    {formErrors.f_warna && <div className="field-error">{formErrors.f_warna}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_harga">Harga kendaraan (Rp)</label>
                     <input
-                      required
                       id="f_harga"
                       type="number"
                       value={formData.f_harga}
                       onChange={handleInputChange}
                       placeholder="0"
+                      className={formErrors.f_harga ? 'input-error' : ''}
                     />
+                    {formErrors.f_harga && <div className="field-error">{formErrors.f_harga}</div>}
                   </div>
                 </div>
               </fieldset>
@@ -518,32 +575,33 @@ function App() {
                   <div>
                     <label htmlFor="f_dp">Down payment (Rp)</label>
                     <input
-                      required
                       id="f_dp"
                       type="number"
                       value={formData.f_dp}
                       onChange={handleInputChange}
                       placeholder="0"
+                      className={formErrors.f_dp ? 'input-error' : ''}
                     />
+                    {formErrors.f_dp && <div className="field-error">{formErrors.f_dp}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_lama">Lama kredit (bulan)</label>
                     <input
-                      required
                       id="f_lama"
                       type="number"
                       value={formData.f_lama}
                       onChange={handleInputChange}
                       placeholder="12"
+                      className={formErrors.f_lama ? 'input-error' : ''}
                     />
+                    {formErrors.f_lama && <div className="field-error">{formErrors.f_lama}</div>}
                   </div>
                   <div>
                     <label htmlFor="f_angsuran">Angsuran per bulan (Rp)</label>
                     <input
                       id="f_angsuran"
-                      type="number"
-                      value={formData.f_angsuran}
-                      onChange={handleInputChange}
+                      type="text"
+                      value={calculatedAngsuran || 'Otomatis dihitung'}
                       placeholder="Otomatis dihitung"
                       readOnly
                     />
@@ -558,7 +616,15 @@ function App() {
                   Keluarga.
                 </p>
                 <label htmlFor="f_files">Pilih file (KTP, Bukti Bayar, Kartu Keluarga, dll)</label>
-                <input type="file" id="f_files" accept="image/*" multiple required onChange={handleFileChange} />
+                <input
+                  type="file"
+                  id="f_files"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileChange}
+                  className={formErrors.f_files ? 'input-error' : ''}
+                />
+                {formErrors.f_files && <div className="field-error">{formErrors.f_files}</div>}
                 <div id="fileList" style={{ marginTop: '8px' }}>
                   {uploadedFiles.map((fileName) => (
                     <div key={fileName} className="file-row">
